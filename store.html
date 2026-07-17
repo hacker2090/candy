@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sugar & Stripe — Candy Shop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<style>
+  :root{
+    --cream:#FFF8EE;
+    --pink:#FF5C97;
+    --grape:#8C4FE0;
+    --lemon:#FFC93C;
+    --mint:#06C293;
+    --plum:#3B1B4A;
+    --white:#FFFFFF;
+    --radius:20px;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  body{
+    background:var(--cream);
+    color:var(--plum);
+    font-family:'Quicksand', sans-serif;
+    line-height:1.5;
+  }
+
+  h1,h2,h3, .logo{ font-family:'Baloo 2', sans-serif; }
+  a{color:inherit; text-decoration:none;}
+  button{font-family:inherit; cursor:pointer;}
+
+  .stripe-bar{
+    height:14px;
+    background-size:200% 100%;
+    animation:
+      stripeMove 2.4s linear infinite,
+      stripeColors 10s steps(1) infinite;
+  }
+
+  @keyframes stripeMove{
+    from{ background-position:0 0; }
+    to{ background-position:56px 0; }
+  }
+
+  @keyframes stripeColors{
+    0%, 24%   { background-image:repeating-linear-gradient(-45deg, #E4342F 0 14px, #FFFFFF 14px 28px); }
+    25%, 49%  { background-image:repeating-linear-gradient(-45deg, #2563EB 0 14px, #16A34A 14px 28px); }
+    50%, 74%  { background-image:repeating-linear-gradient(-45deg, #FFFFFF 0 14px, #111111 14px 28px); }
+    75%, 99%  { background-image:repeating-linear-gradient(-45deg, #FACC15 0 14px, #16A34A 14px 28px); }
+    100%      { background-image:repeating-linear-gradient(-45deg, #E4342F 0 14px, #FFFFFF 14px 28px); }
+  }
+
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:22px 6%; background:var(--white); gap:20px; flex-wrap:wrap;
+  }
+  .logo{ font-size:1.6rem; font-weight:800; color:var(--grape); display:flex; align-items:center; gap:8px; }
+  .logo span{color:var(--pink);}
+  nav ul{ list-style:none; display:flex; gap:34px; font-weight:700; align-items:center; }
+
+  /* ---------- store status badge (header carousel) ---------- */
+  .store-status{
+    display:flex; align-items:center; gap:10px;
+    border:3px solid var(--plum); border-radius:999px;
+    padding:8px 18px 8px 14px;
+    font-weight:700; font-size:.9rem;
+    background:var(--cream);
+    transition:background .3s ease;
+    min-width:180px;
+  }
+  .store-status.open{ background:#E4FBF3; }
+  .store-status.closed{ background:#FFE9EF; }
+
+  .status-dot{
+    width:11px; height:11px; border-radius:50%; flex-shrink:0;
+    background:#999;
+  }
+  .store-status.open .status-dot{
+    background:var(--mint);
+    box-shadow:0 0 0 0 rgba(6,194,147,.6);
+    animation:pulse 1.8s infinite;
+  }
+  .store-status.closed .status-dot{ background:var(--pink); }
+
+  @keyframes pulse{
+    0%{ box-shadow:0 0 0 0 rgba(6,194,147,.5); }
+    70%{ box-shadow:0 0 0 8px rgba(6,194,147,0); }
+    100%{ box-shadow:0 0 0 0 rgba(6,194,147,0); }
+  }
+
+  #status-text{
+    display:inline-block;
+    opacity:1;
+    transition:opacity .25s ease;
+    white-space:nowrap;
+  }
+  #status-text.fade{ opacity:0; }
+
+  /* ---------- footer ---------- */
+  .site-footer{
+    background:var(--plum); color:var(--cream);
+    padding:60px 6% 30px;
+  }
+  .footer-grid{
+    display:grid; grid-template-columns:1.3fr 1fr 1fr; gap:40px;
+    max-width:1100px; margin:0 auto 40px;
+  }
+  .footer-col h4{
+    font-family:'Baloo 2', sans-serif; color:var(--lemon); font-size:1.05rem; margin-bottom:16px;
+  }
+  .footer-col p, .footer-col li{
+    color:#E9D9F0; font-size:.9rem; font-weight:500; margin-bottom:8px; line-height:1.6;
+  }
+  .footer-col ul{ list-style:none; }
+  .footer-col .footer-logo{
+    font-family:'Baloo 2', sans-serif; font-size:1.3rem; font-weight:800; color:var(--white); margin-bottom:12px;
+  }
+  .hours-row{ display:flex; justify-content:space-between; gap:10px; font-size:.88rem; }
+  .hours-row.today{ color:var(--mint); font-weight:700; }
+  .footer-bottom{
+    max-width:1100px; margin:0 auto; padding-top:26px; border-top:1px solid rgba(255,255,255,.15);
+    text-align:center; font-size:.82rem; color:#C7AED4; font-weight:600;
+  }
+
+  @media (max-width:760px){
+    .footer-grid{ grid-template-columns:1fr; }
+  }
+
+  .hidden{ display:none !important; }
+
+  /* ---------- shared elements ---------- */
+  .wrap{ max-width:1100px; margin:0 auto; padding:60px 6%; }
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    font-family:'Baloo 2', sans-serif; font-weight:700; font-size:1rem;
+    color:var(--white); background:var(--pink);
+    padding:14px 32px; border-radius:999px; border:3px solid var(--plum);
+    box-shadow:5px 5px 0 var(--plum);
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .btn:hover{ transform:translate(-3px,-3px); box-shadow:8px 8px 0 var(--plum); }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; transform:none; box-shadow:5px 5px 0 var(--plum); }
+
+  .btn.ghost{
+    background:var(--white); color:var(--plum);
+  }
+  .btn.small{ padding:10px 20px; font-size:.9rem; box-shadow:4px 4px 0 var(--plum); }
+
+  .back-link{
+    display:inline-flex; align-items:center; gap:6px;
+    font-weight:700; color:var(--grape); margin-bottom:28px;
+  }
+
+  /* ---------- shop grid ---------- */
+  .section-title{ text-align:center; margin-bottom:44px; }
+  .section-title h2{ font-size:2.2rem; font-weight:800; color:var(--grape); }
+  .section-title p{ color:#6B4C77; font-weight:600; }
+
+  .grid{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+    gap:32px;
+  }
+
+  .jar{
+    background:var(--white); border:3px solid var(--plum); border-radius:var(--radius);
+    padding:28px 24px 24px; text-align:center; transition:transform .2s ease;
+  }
+  .jar:hover{ transform:translateY(-8px) rotate(-1deg); }
+  .jar .icon{
+    width:78px; height:78px; margin:0 auto 18px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-size:2.2rem;
+    border:3px solid var(--plum);
+  }
+  .jar h3{ font-size:1.25rem; margin-bottom:6px; }
+  .jar .price{ font-family:'Baloo 2', sans-serif; font-weight:700; color:var(--pink); font-size:1.1rem; margin:8px 0 16px; }
+  .tag{
+    display:inline-block; font-size:.75rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+    background:var(--lemon); color:var(--plum); padding:4px 12px; border-radius:999px; border:2px solid var(--plum);
+  }
+
+  /* ---------- product detail ---------- */
+  .detail-wrap{
+    display:grid; grid-template-columns:340px 1fr; gap:50px; align-items:start;
+  }
+  .detail-image{
+    width:100%; aspect-ratio:1; border-radius:var(--radius); border:3px solid var(--plum);
+    display:flex; align-items:center; justify-content:center; font-size:6rem;
+  }
+  .detail-info h2{ font-size:2rem; margin-bottom:10px; }
+  .detail-info .price{ font-family:'Baloo 2', sans-serif; color:var(--pink); font-size:1.5rem; font-weight:700; margin-bottom:18px; }
+  .detail-info p.desc{ color:#5B3A66; font-weight:500; margin-bottom:20px; max-width:520px; }
+  .detail-info ul{ list-style:none; margin-bottom:28px; }
+  .detail-info ul li{ padding-left:22px; position:relative; margin-bottom:8px; color:#5B3A66; font-weight:600; font-size:.95rem; }
+  .detail-info ul li::before{ content:"🍬"; position:absolute; left:0; font-size:.85rem; }
+
+  .stock-badge{
+    display:inline-block; font-size:.75rem; font-weight:700; letter-spacing:.03em;
+    padding:4px 12px; border-radius:999px; border:2px solid var(--plum); margin-left:8px;
+  }
+  .stock-badge.in{ background:#E4FBF3; color:#087A5C; }
+  .stock-badge.low{ background:#FFF3D6; color:#8A5B00; }
+  .stock-badge.out{ background:#FFE9EF; color:#B3123D; }
+
+  .qty-stepper button:disabled{ opacity:.4; cursor:not-allowed; }
+
+  .qty-stepper{
+    display:inline-flex; align-items:center; gap:0; border:3px solid var(--plum); border-radius:999px;
+    overflow:hidden; margin-bottom:26px;
+  }
+  .qty-stepper button{
+    width:44px; height:44px; background:var(--lemon); border:none; font-size:1.3rem; font-weight:700; color:var(--plum);
+  }
+  .qty-stepper span{ min-width:44px; text-align:center; font-weight:700; font-size:1.1rem; }
+
+  /* ---------- checkout ---------- */
+  .checkout-grid{
+    display:grid; grid-template-columns:1fr 360px; gap:44px; align-items:start;
+  }
+
+  .card{
+    background:var(--white); border:3px solid var(--plum); border-radius:var(--radius); padding:30px;
+    margin-bottom:28px;
+  }
+  .card h3{ font-size:1.2rem; margin-bottom:18px; color:var(--grape); }
+
+  .form-group{ margin-bottom:18px; }
+  .form-group label{ display:block; font-weight:700; font-size:.9rem; margin-bottom:6px; }
+  .form-group input, .form-group textarea{
+    width:100%; padding:12px 14px; border:2.5px solid var(--plum); border-radius:12px;
+    font-family:inherit; font-size:1rem; background:var(--cream); color:var(--plum);
+  }
+  .form-group input:focus, .form-group textarea:focus{ outline:3px solid var(--mint); }
+  .form-row{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+
+  .phone-input{ display:flex; }
+  .phone-prefix{
+    display:flex; align-items:center; gap:4px;
+    padding:0 14px; border:2.5px solid var(--plum); border-right:none;
+    border-radius:12px 0 0 12px; background:var(--lemon); color:var(--plum);
+    font-weight:700; font-size:.95rem; white-space:nowrap;
+  }
+  .phone-input input{ border-radius:0 12px 12px 0; }
+  .field-hint{ font-size:.75rem; color:#8A6C93; font-weight:600; margin-top:5px; }
+
+  .delivery-toggle{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:8px; }
+  .method-btn{
+    border:3px solid var(--plum); border-radius:16px; padding:18px; background:var(--cream);
+    text-align:left; font-weight:700;
+  }
+  .method-btn .sub{ display:block; font-weight:500; font-size:.85rem; color:#5B3A66; margin-top:4px; }
+  .method-btn.active{ background:var(--mint); color:var(--white); }
+  .method-btn.active .sub{ color:#F0FFFB; }
+
+  .location-box{ margin-top:20px; }
+  #map{
+    height:280px; width:100%; border-radius:16px; border:3px solid var(--plum); margin-top:14px;
+  }
+  .loc-status{ font-size:.85rem; font-weight:600; color:#5B3A66; margin-top:8px; }
+  .loc-status.ok{ color:var(--mint); }
+  .loc-status.err{ color:var(--pink); }
+
+  .pickup-list{ display:flex; flex-direction:column; gap:12px; }
+  .pickup-card{
+    border:2.5px solid var(--plum); border-radius:14px; padding:14px 16px;
+    display:flex; justify-content:space-between; align-items:center; gap:14px;
+    background:var(--cream); text-align:left; width:100%;
+  }
+  .pickup-card .pc-name{ font-weight:700; font-size:.98rem; }
+  .pickup-card .pc-address{ font-size:.82rem; color:#5B3A66; font-weight:500; margin-top:2px; }
+  .pickup-card .pc-hours{ font-size:.78rem; color:#8A6C93; font-weight:600; margin-top:2px; }
+  .pickup-card .pc-check{
+    width:26px; height:26px; border-radius:50%; border:2.5px solid var(--plum);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:.85rem;
+    background:var(--white);
+  }
+  .pickup-card.selected{ background:#E4FBF3; border-color:var(--mint); }
+  .pickup-card.selected .pc-check{ background:var(--mint); border-color:var(--mint); color:var(--white); }
+  .pickup-card .pc-link{ font-size:.78rem; font-weight:700; color:var(--grape); margin-top:4px; display:inline-block; }
+
+  /* ---------- sidebar summary ---------- */
+  .summary-card{
+    background:var(--plum); color:var(--cream); border-radius:var(--radius); padding:28px;
+    position:sticky; top:24px;
+  }
+  .summary-card h3{ color:var(--lemon); font-size:1.15rem; margin-bottom:18px; }
+  .summary-item{ display:flex; justify-content:space-between; gap:10px; font-size:.9rem; margin-bottom:10px; color:#E9D9F0; }
+  .summary-item b{ color:var(--white); font-weight:700; }
+  .summary-divider{ height:2px; background:rgba(255,255,255,.15); margin:16px 0; }
+  .summary-row{ display:flex; justify-content:space-between; font-weight:600; margin-bottom:8px; font-size:.95rem; }
+  .summary-row.total{ font-family:'Baloo 2', sans-serif; font-size:1.3rem; color:var(--mint); margin-top:10px; }
+  .summary-empty{ font-size:.85rem; color:#C7AED4; font-style:italic; }
+
+  /* ---------- confirmation ---------- */
+  .confirm-box{ text-align:center; max-width:520px; margin:0 auto; }
+  .confirm-box .check{
+    width:90px; height:90px; border-radius:50%; background:var(--mint); color:var(--white);
+    display:flex; align-items:center; justify-content:center; font-size:2.6rem; margin:0 auto 24px;
+    border:3px solid var(--plum);
+  }
+  .confirm-box h2{ font-size:1.8rem; margin-bottom:12px; }
+  .confirm-box p{ color:#5B3A66; font-weight:600; margin-bottom:6px; }
+  .order-id{ font-family:'Baloo 2', sans-serif; color:var(--pink); font-weight:700; }
+
+  /* ---------- payment modal ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(59,27,74,.55);
+    display:flex; align-items:center; justify-content:center; padding:20px; z-index:100;
+  }
+  .modal-card{
+    background:var(--white); border:3px solid var(--plum); border-radius:var(--radius);
+    padding:32px; max-width:420px; width:100%;
+  }
+  .modal-card h3{ font-size:1.3rem; color:var(--grape); margin-bottom:6px; }
+  .modal-sub{ font-size:.88rem; color:#6B4C77; font-weight:600; margin-bottom:22px; }
+
+  .payment-options{ display:flex; flex-direction:column; gap:12px; margin-bottom:16px; }
+  .payment-btn{
+    display:flex; align-items:center; gap:14px; width:100%;
+    border:2.5px solid var(--plum); border-radius:14px; padding:12px 14px;
+    background:var(--cream); text-align:left;
+  }
+  .payment-btn > span:nth-child(2){ display:flex; flex-direction:column; flex:1; }
+  .pay-icon{
+    width:38px; height:38px; border-radius:10px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Baloo 2', sans-serif; font-weight:800; color:var(--white); font-size:1.1rem;
+  }
+  .pay-name{ font-weight:700; font-size:.95rem; }
+  .pay-sub{ font-size:.78rem; color:#6B4C77; font-weight:500; }
+  .pay-check{
+    width:22px; height:22px; border-radius:50%; border:2px solid var(--plum);
+    display:flex; align-items:center; justify-content:center; font-size:.75rem; color:transparent;
+    flex-shrink:0;
+  }
+  .payment-btn.selected{ background:#E4FBF3; border-color:var(--mint); }
+  .payment-btn.selected .pay-check{ background:var(--mint); border-color:var(--mint); color:var(--white); }
+
+  .pay-total-line{
+    text-align:center; font-weight:700; font-size:1.1rem; color:var(--plum);
+    background:var(--cream); border-radius:12px; padding:10px; margin-bottom:20px;
+    font-family:'Baloo 2', sans-serif;
+  }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:12px; }
+
+  @media (max-width:760px){
+    .detail-wrap, .checkout-grid{ grid-template-columns:1fr; }
+    .form-row, .delivery-toggle{ grid-template-columns:1fr; }
+    nav ul{ gap:16px; font-size:.85rem; }
+  }
+</style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">🍬 Sugar <span>&</span> Stripe</div>
+    <nav><ul>
+      <li><a href="#" onclick="showView('shop'); return false;">Shop</a></li>
+      <li>
+        <div class="store-status" id="store-status">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="status-text">Checking hours…</span>
+        </div>
+      </li>
+    </ul></nav>
+  </header>
+  <div class="stripe-bar"></div>
+
+  <!-- ============ SHOP VIEW ============ -->
+  <section id="view-shop" class="wrap">
+    <div class="section-title">
+      <h2>This Week's Batch</h2>
+      <p>Fresh jars, restocked every Friday — tap a candy to see the details</p>
+    </div>
+    <div class="grid" id="shop-grid"></div>
+  </section>
+
+  <!-- ============ PRODUCT DETAIL VIEW ============ -->
+  <section id="view-detail" class="wrap hidden">
+    <a class="back-link" href="#" onclick="showView('shop'); return false;">← Back to Shop</a>
+    <div class="detail-wrap">
+      <div id="detail-image" class="detail-image"></div>
+      <div class="detail-info">
+        <span id="detail-tag" class="tag"></span>
+        <span id="detail-stock" class="stock-badge"></span>
+        <h2 id="detail-name" style="margin-top:14px;"></h2>
+        <div id="detail-price" class="price"></div>
+        <p id="detail-desc" class="desc"></p>
+        <ul id="detail-list"></ul>
+
+        <div class="qty-stepper">
+          <button onclick="changeQty(-1)">−</button>
+          <span id="qty-display">1</span>
+          <button onclick="changeQty(1)">+</button>
+        </div>
+        <br>
+        <button class="btn" id="checkout-btn" onclick="proceedToCheckout()">Proceed to Checkout →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CHECKOUT VIEW ============ -->
+  <section id="view-checkout" class="wrap hidden">
+    <a class="back-link" href="#" onclick="showView('detail'); return false;">← Back to Product</a>
+    <div class="section-title" style="text-align:left; margin-bottom:30px;">
+      <h2 style="font-size:1.8rem;">Checkout</h2>
+    </div>
+
+    <div class="checkout-grid">
+      <div>
+        <div class="card">
+          <h3>Your Information</h3>
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" id="cust-name" placeholder="Jane Candy" oninput="updateSummary()">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Email</label>
+              <input type="email" id="cust-email" placeholder="jane@example.com" oninput="updateSummary()">
+            </div>
+            <div class="form-group">
+              <label>Phone</label>
+              <div class="phone-input">
+                <span class="phone-prefix">🇲🇿 +258</span>
+                <input type="tel" id="cust-phone" placeholder="84 123 4567" maxlength="9" inputmode="numeric" oninput="sanitizePhone(this); updateSummary()">
+              </div>
+              <div class="field-hint">9 digits, e.g. mobile numbers starting 82/83/84/85/86/87</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Delivery Method</h3>
+          <div class="delivery-toggle">
+            <button type="button" class="method-btn" id="btn-selfcollect" onclick="selectDelivery('self')">
+              🏪 Self Collect
+              <span class="sub">Pick up in-store · no extra fee</span>
+            </button>
+            <button type="button" class="method-btn" id="btn-delivery" onclick="selectDelivery('delivery')">
+              🚚 Delivery
+              <span class="sub">To your address · +$50.00</span>
+            </button>
+          </div>
+
+          <div id="location-box" class="location-box hidden">
+            <div class="form-group">
+              <label>Delivery Address</label>
+              <input type="text" id="cust-address" placeholder="Street, city, zip" oninput="updateSummary()">
+            </div>
+            <button class="btn ghost small" onclick="requestLocation()">📍 Use My Current Location</button>
+            <div id="loc-status" class="loc-status"></div>
+            <div id="map"></div>
+          </div>
+
+          <div id="pickup-box" class="location-box hidden">
+            <label style="display:block; font-weight:700; font-size:.9rem; margin-bottom:12px;">Choose a Pickup Store</label>
+            <div id="pickup-list" class="pickup-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SIDEBAR -->
+      <aside class="summary-card">
+        <h3>Order Summary</h3>
+        <div id="summary-body">
+          <p class="summary-empty">No product selected.</p>
+        </div>
+        <div class="summary-divider"></div>
+        <div class="summary-row"><span>Subtotal</span><span id="sum-subtotal">$0.00</span></div>
+        <div class="summary-row"><span>Delivery Fee</span><span id="sum-fee">$0.00</span></div>
+        <div class="summary-row total"><span>Total</span><span id="sum-total">$0.00</span></div>
+        <button class="btn" style="width:100%; margin-top:18px;" onclick="placeOrder()">Place Order</button>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ CONFIRMATION VIEW ============ -->
+  <section id="view-confirm" class="wrap hidden">
+    <div class="confirm-box">
+      <div class="check">✓</div>
+      <h2>Order placed!</h2>
+      <p>Thanks<span id="confirm-name"></span> — your candy is on its way to being packed.</p>
+      <p>Order reference: <span class="order-id" id="confirm-id"></span></p>
+      <p>Paid via: <span class="order-id" id="confirm-payment"></span></p>
+      <br>
+      <button class="btn ghost" onclick="resetAndReturn()">Back to Shop</button>
+    </div>
+  </section>
+
+  <!-- ============ PAYMENT METHOD MODAL ============ -->
+  <div id="payment-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h3>Choose a Payment Method</h3>
+      <p class="modal-sub">Select how you'd like to pay for this order</p>
+
+      <div class="payment-options">
+        <button type="button" class="payment-btn" id="pay-binance" onclick="selectPayment('Binance')">
+          <span class="pay-icon" style="background:#F0B90B;">B</span>
+          <span>
+            <span class="pay-name">Binance Pay</span>
+            <span class="pay-sub">Pay with crypto</span>
+          </span>
+          <span class="pay-check">✓</span>
+        </button>
+
+        <button type="button" class="payment-btn" id="pay-mpesa" onclick="selectPayment('M-Pesa')">
+          <span class="pay-icon" style="background:#4CAF50;">M</span>
+          <span>
+            <span class="pay-name">M-Pesa</span>
+            <span class="pay-sub">Mobile money</span>
+          </span>
+          <span class="pay-check">✓</span>
+        </button>
+
+        <button type="button" class="payment-btn" id="pay-emola" onclick="selectPayment('Emola')">
+          <span class="pay-icon" style="background:#F4801F;">E</span>
+          <span>
+            <span class="pay-name">Emola</span>
+            <span class="pay-sub">Mobile money</span>
+          </span>
+          <span class="pay-check">✓</span>
+        </button>
+      </div>
+
+      <div id="pay-total-line" class="pay-total-line"></div>
+
+      <div class="modal-actions">
+        <button class="btn ghost small" onclick="closePaymentModal()">Cancel</button>
+        <button class="btn small" id="pay-confirm-btn" onclick="confirmPayment()" disabled>Confirm Payment</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ STORE INFO FOOTER ============ -->
+  <footer class="site-footer">
+    <div class="footer-grid">
+      <div class="footer-col">
+        <div class="footer-logo">🍬 Sugar & Stripe</div>
+        <p>Small-batch candy, mixed and twisted by hand every morning at our shop counter.</p>
+        <p>14 Maple Row<br>Portland, OR 97205</p>
+        <p>📞 (555) 219-4488<br>✉️ hello@sugarandstripe.example</p>
+      </div>
+
+      <div class="footer-col">
+        <h4>Store Hours</h4>
+        <p style="margin-top:-10px; margin-bottom:14px; font-size:.78rem; opacity:.75;">Johannesburg time (SAST, UTC+02:00)</p>
+        <ul id="hours-list">
+          <li class="hours-row"><span>Monday</span><span>Closed</span></li>
+          <li class="hours-row"><span>Tuesday</span><span>10 AM – 6 PM</span></li>
+          <li class="hours-row"><span>Wednesday</span><span>10 AM – 6 PM</span></li>
+          <li class="hours-row"><span>Thursday</span><span>10 AM – 6 PM</span></li>
+          <li class="hours-row"><span>Friday</span><span>10 AM – 6 PM</span></li>
+          <li class="hours-row"><span>Saturday</span><span>10 AM – 6 PM</span></li>
+          <li class="hours-row"><span>Sunday</span><span>10 AM – 6 PM</span></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h4>Good to Know</h4>
+        <ul>
+          <li>🚚 Delivery available, flat $50 fee</li>
+          <li>🏪 Self-collect always free</li>
+          <li>🌐 Online orders taken any time</li>
+          <li>💳 Cards & mobile pay accepted</li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">Sugar & Stripe Candy Co. · Made fresh, sold happy · © <span id="footer-year"></span></div>
+  </footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+  const products = [
+    { id:1, name:"Bubblegum Swirl Pops", price:3.50, unit:"each", color:"var(--pink)", emoji:"🍭", tag:"Bestseller", stock:42,
+      desc:"Hand-pulled bubblegum sugar, twisted into a rainbow swirl and set on a birch stick. Bursts of classic bubblegum flavor with a light chew once you reach the core.",
+      details:["Hand-pulled fresh daily","Contains: sugar, corn syrup, natural flavor","Nut-free facility","Shelf life: 3 months"] },
+    { id:2, name:"Sour Lemon Drops", price:4.00, unit:"per 8oz bag", color:"var(--lemon)", emoji:"🍋", tag:"Extra Sour", stock:4,
+      desc:"Tiny sour-dusted lemon drops with a tart hit up front that mellows into real lemon sweetness. Great for sharing, if you're willing.",
+      details:["8oz resealable bag","Coated in citric sugar dust","Vegan","Shelf life: 6 months"] },
+    { id:3, name:"Minty Ribbon Twists", price:3.75, unit:"per 8oz bag", color:"var(--mint)", emoji:"🌿", tag:"Cooling", stock:19,
+      desc:"Cool peppermint ribbons folded by hand and snapped into bite-size twists. A crisp, clean mint finish.",
+      details:["8oz resealable bag","Made with real peppermint oil","Gluten-free","Shelf life: 6 months"] },
+    { id:4, name:"Grape Fizz Chews", price:4.25, unit:"per 8oz bag", color:"var(--grape)", emoji:"🍇", tag:"Popping", stock:0,
+      desc:"Soft grape chews with a popping-candy center that fizzes the moment you bite in.",
+      details:["8oz resealable bag","Popping candy center","Nut-free facility","Shelf life: 4 months"] },
+    { id:5, name:"Strawberry Cream Fudge", price:5.50, unit:"per 6oz slab", color:"#FFB3C6", emoji:"🍓", tag:"New", stock:11,
+      desc:"Rich strawberry fudge folded with real cream and freeze-dried strawberry pieces, cut into thick slabs.",
+      details:["6oz slab","Contains dairy","Best within 2 weeks, keep cool","Cut fresh to order"] },
+    { id:6, name:"Salted Caramel Bites", price:5.00, unit:"per 6oz bag", color:"#C9A6FF", emoji:"🍫", tag:"Rich", stock:27,
+      desc:"Chewy caramel bites finished with flaky sea salt and dipped lightly in dark chocolate.",
+      details:["6oz resealable bag","Contains dairy, may contain traces of nuts","Shelf life: 2 months","Store in a cool place"] }
+  ];
+
+  const DELIVERY_FEE = 50.00;
+
+  const pickupStores = [
+    { id:'maputo-baixa', name:'Sugar & Stripe — Baixa', address:'Av. 25 de Setembro 1146, Maputo', hours:'Tue–Sun · 10:00–18:00', lat:-25.9658, lng:32.5832 },
+    { id:'matola-centro', name:'Sugar & Stripe — Matola Centro', address:'Av. da Marginal, Matola, Maputo Province', hours:'Tue–Sun · 10:00–18:00', lat:-25.9622, lng:32.4589 },
+    { id:'polana', name:'Sugar & Stripe — Polana Kiosk', address:'Av. Julius Nyerere, Polana, Maputo', hours:'Tue–Sun · 10:00–18:00', lat:-25.9553, lng:32.6017 }
+  ];
+
+  const state = {
+    product: null,
+    qty: 1,
+    deliveryMethod: null, // 'self' | 'delivery'
+    selectedStore: null,
+    lat: null,
+    lng: null,
+    map: null,
+    marker: null
+  };
+
+  function sanitizePhone(el){
+    el.value = el.value.replace(/\D/g, '').slice(0, 9);
+  }
+
+  function renderPickupStores(){
+    const list = document.getElementById('pickup-list');
+    list.innerHTML = pickupStores.map(s => `
+      <button type="button" class="pickup-card ${state.selectedStore && state.selectedStore.id === s.id ? 'selected' : ''}" onclick="selectStore('${s.id}')">
+        <div>
+          <div class="pc-name">${s.name}</div>
+          <div class="pc-address">${s.address}</div>
+          <div class="pc-hours">${s.hours}</div>
+          <a class="pc-link" href="https://www.openstreetmap.org/?mlat=${s.lat}&mlon=${s.lng}#map=16/${s.lat}/${s.lng}" target="_blank" rel="noopener" onclick="event.stopPropagation();">View on map ↗</a>
+        </div>
+        <div class="pc-check">${state.selectedStore && state.selectedStore.id === s.id ? '✓' : ''}</div>
+      </button>
+    `).join('');
+  }
+
+  function selectStore(id){
+    state.selectedStore = pickupStores.find(s => s.id === id);
+    renderPickupStores();
+    updateSummary();
+  }
+
+  // ---------- render shop grid ----------
+  const grid = document.getElementById('shop-grid');
+  products.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'jar';
+    el.innerHTML = `
+      <div class="icon" style="background:${p.color};">${p.emoji}</div>
+      <h3>${p.name}</h3>
+      <div class="price">$${p.price.toFixed(2)} <span style="font-size:.7rem; color:#6B4C77;">${p.unit}</span></div>
+      <span class="tag">${p.tag}</span><br><br>
+      <button class="btn small" onclick="openDetail(${p.id})">View Details</button>
+    `;
+    grid.appendChild(el);
+  });
+
+  function showView(name){
+    ['shop','detail','checkout','confirm'].forEach(v=>{
+      document.getElementById('view-'+v).classList.toggle('hidden', v!==name);
+    });
+    window.scrollTo({top:0, behavior:'smooth'});
+    if(name === 'checkout' && state.deliveryMethod === 'delivery'){
+      setTimeout(()=>{ if(state.map) state.map.invalidateSize(); }, 200);
+    }
+  }
+
+  function getStockStatus(stock){
+    if(stock <= 0) return { label:'Out of Stock', cls:'out' };
+    if(stock <= 5) return { label:`Only ${stock} left`, cls:'low' };
+    return { label:'In Stock', cls:'in' };
+  }
+
+  function openDetail(id){
+    state.product = products.find(p=>p.id===id);
+    state.qty = 1;
+    const p = state.product;
+    document.getElementById('detail-image').style.background = p.color;
+    document.getElementById('detail-image').textContent = p.emoji;
+    document.getElementById('detail-tag').textContent = p.tag;
+
+    const status = getStockStatus(p.stock);
+    const stockEl = document.getElementById('detail-stock');
+    stockEl.textContent = status.label;
+    stockEl.className = 'stock-badge ' + status.cls;
+
+    document.getElementById('detail-name').textContent = p.name;
+    document.getElementById('detail-price').textContent = `$${p.price.toFixed(2)} ${p.unit}`;
+    document.getElementById('detail-desc').textContent = p.desc;
+    document.getElementById('detail-list').innerHTML = p.details.map(d=>`<li>${d}</li>`).join('');
+    document.getElementById('qty-display').textContent = state.qty;
+
+    const outOfStock = p.stock <= 0;
+    document.querySelectorAll('.qty-stepper button').forEach(b => b.disabled = outOfStock);
+    const checkoutBtn = document.getElementById('checkout-btn');
+    checkoutBtn.disabled = outOfStock;
+    checkoutBtn.textContent = outOfStock ? 'Out of Stock' : 'Proceed to Checkout →';
+
+    showView('detail');
+  }
+
+  function changeQty(delta){
+    const max = state.product ? state.product.stock : 99;
+    state.qty = Math.min(max, Math.max(1, state.qty + delta));
+    document.getElementById('qty-display').textContent = state.qty;
+  }
+
+  function proceedToCheckout(){
+    showView('checkout');
+    updateSummary();
+  }
+
+  // ---------- delivery method ----------
+  function selectDelivery(method){
+    state.deliveryMethod = method;
+    document.getElementById('btn-selfcollect').classList.toggle('active', method==='self');
+    document.getElementById('btn-delivery').classList.toggle('active', method==='delivery');
+    document.getElementById('location-box').classList.toggle('hidden', method!=='delivery');
+    document.getElementById('pickup-box').classList.toggle('hidden', method!=='self');
+
+    if(method === 'delivery'){
+      setTimeout(initMap, 150);
+    }
+    if(method === 'self'){
+      renderPickupStores();
+    }
+    updateSummary();
+  }
+
+  // ---------- map + geolocation ----------
+  function initMap(){
+    if(state.map) { state.map.invalidateSize(); return; }
+    state.map = L.map('map').setView([40.7128, -74.0060], 12); // default view, e.g. NYC
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(state.map);
+
+    state.map.on('click', function(e){
+      setMarker(e.latlng.lat, e.latlng.lng);
+      reverseGeocode(e.latlng.lat, e.latlng.lng);
+    });
+  }
+
+  function setMarker(lat, lng){
+    state.lat = lat; state.lng = lng;
+    if(state.marker){
+      state.marker.setLatLng([lat, lng]);
+    } else {
+      state.marker = L.marker([lat, lng], {draggable:true}).addTo(state.map);
+      state.marker.on('dragend', function(){
+        const pos = state.marker.getLatLng();
+        state.lat = pos.lat; state.lng = pos.lng;
+        reverseGeocode(pos.lat, pos.lng);
+        updateSummary();
+      });
+    }
+    state.map.setView([lat, lng], 15);
+    updateSummary();
+  }
+
+  function requestLocation(){
+    const status = document.getElementById('loc-status');
+    status.className = 'loc-status';
+    status.textContent = 'Requesting permission to access your location…';
+
+    if(!navigator.geolocation){
+      status.className = 'loc-status err';
+      status.textContent = 'Geolocation is not supported by this browser.';
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude, longitude } = pos.coords;
+        if(!state.map) initMap();
+        setMarker(latitude, longitude);
+        reverseGeocode(latitude, longitude);
+        status.className = 'loc-status ok';
+        status.textContent = `Location found (±${Math.round(pos.coords.accuracy)}m). Drag the pin to fine-tune.`;
+      },
+      err => {
+        status.className = 'loc-status err';
+        status.textContent = 'Location access denied or unavailable. You can also click the map, or type your address manually.';
+      },
+      { enableHighAccuracy:true, timeout:10000 }
+    );
+  }
+
+  async function reverseGeocode(lat, lng){
+    try{
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+      const data = await res.json();
+      if(data && data.display_name){
+        document.getElementById('cust-address').value = data.display_name;
+        updateSummary();
+      }
+    }catch(e){
+      // fallback: leave address field for manual entry
+    }
+  }
+
+  // ---------- live order summary ----------
+  function updateSummary(){
+    const body = document.getElementById('summary-body');
+    const name = document.getElementById('cust-name')?.value || '';
+    const email = document.getElementById('cust-email')?.value || '';
+    const phone = document.getElementById('cust-phone')?.value || '';
+    const address = document.getElementById('cust-address')?.value || '';
+
+    if(!state.product){
+      body.innerHTML = '<p class="summary-empty">No product selected.</p>';
+      document.getElementById('sum-subtotal').textContent = '$0.00';
+      document.getElementById('sum-fee').textContent = '$0.00';
+      document.getElementById('sum-total').textContent = '$0.00';
+      return;
+    }
+
+    const subtotal = state.product.price * state.qty;
+    const fee = state.deliveryMethod === 'delivery' ? DELIVERY_FEE : 0;
+    const total = subtotal + fee;
+
+    let rows = `
+      <div class="summary-item"><span>Item</span><b>${state.product.name}</b></div>
+      <div class="summary-item"><span>Qty</span><b>${state.qty}</b></div>
+    `;
+    if(name)  rows += `<div class="summary-item"><span>Name</span><b>${name}</b></div>`;
+    if(email) rows += `<div class="summary-item"><span>Email</span><b>${email}</b></div>`;
+    if(phone) rows += `<div class="summary-item"><span>Phone</span><b>+258 ${phone}</b></div>`;
+    if(state.deliveryMethod) rows += `<div class="summary-item"><span>Method</span><b>${state.deliveryMethod === 'delivery' ? 'Delivery' : 'Self Collect'}</b></div>`;
+    if(state.deliveryMethod === 'delivery' && address) rows += `<div class="summary-item"><span>Address</span><b style="text-align:right;">${address}</b></div>`;
+    if(state.deliveryMethod === 'delivery' && state.lat) rows += `<div class="summary-item"><span>Coordinates</span><b>${state.lat.toFixed(4)}, ${state.lng.toFixed(4)}</b></div>`;
+    if(state.deliveryMethod === 'self' && state.selectedStore) rows += `<div class="summary-item"><span>Pickup Store</span><b style="text-align:right;">${state.selectedStore.name}</b></div>`;
+
+    body.innerHTML = rows;
+    document.getElementById('sum-subtotal').textContent = `$${subtotal.toFixed(2)}`;
+    document.getElementById('sum-fee').textContent = `$${fee.toFixed(2)}`;
+    document.getElementById('sum-total').textContent = `$${total.toFixed(2)}`;
+  }
+
+  let selectedPayment = null;
+
+  function placeOrder(){
+    if(!state.product){ alert('Please choose a product first.'); return; }
+    if(!document.getElementById('cust-name').value){ alert('Please enter your name.'); return; }
+
+    const phoneDigits = document.getElementById('cust-phone').value;
+    if(phoneDigits.length !== 9){
+      alert('Please enter a valid Mozambique phone number — 9 digits after +258.');
+      return;
+    }
+
+    if(!state.deliveryMethod){ alert('Please choose a delivery method.'); return; }
+    if(state.deliveryMethod === 'delivery' && !document.getElementById('cust-address').value){
+      alert('Please provide a delivery address or set your location on the map.');
+      return;
+    }
+    if(state.deliveryMethod === 'self' && !state.selectedStore){
+      alert('Please choose a pickup store.');
+      return;
+    }
+
+    openPaymentModal();
+  }
+
+  function openPaymentModal(){
+    const subtotal = state.product.price * state.qty;
+    const fee = state.deliveryMethod === 'delivery' ? DELIVERY_FEE : 0;
+    const total = subtotal + fee;
+    document.getElementById('pay-total-line').textContent = `Total to pay: $${total.toFixed(2)}`;
+
+    selectedPayment = null;
+    ['pay-binance','pay-mpesa','pay-emola'].forEach(id => document.getElementById(id).classList.remove('selected'));
+    document.getElementById('pay-confirm-btn').disabled = true;
+
+    document.getElementById('payment-modal').classList.remove('hidden');
+  }
+
+  function closePaymentModal(){
+    document.getElementById('payment-modal').classList.add('hidden');
+  }
+
+  function selectPayment(method){
+    selectedPayment = method;
+    const map = { 'Binance':'pay-binance', 'M-Pesa':'pay-mpesa', 'Emola':'pay-emola' };
+    Object.values(map).forEach(id => document.getElementById(id).classList.remove('selected'));
+    document.getElementById(map[method]).classList.add('selected');
+    document.getElementById('pay-confirm-btn').disabled = false;
+  }
+
+function confirmPayment() {
+    if (!selectedPayment) return;
+
+    const name = document.getElementById('cust-name').value;
+    const email = document.getElementById('cust-email').value;
+    const phone = document.getElementById('cust-phone').value;
+    const address = document.getElementById('cust-address').value;
+
+    const subtotal = state.product.price * state.qty;
+    const fee = state.deliveryMethod === 'delivery' ? DELIVERY_FEE : 0;
+    const total = subtotal + fee;
+
+    const orderID = 'SS-' + Math.floor(100000 + Math.random() * 900000);
+
+    // Replace with your WhatsApp number
+    const whatsappNumber = "258861491510";
+
+    let message =
+`🍬 *NEW CANDY ORDER*
+
+Order ID: ${orderID}
+
+👤 Customer
+Name: ${name}
+Email: ${email}
+Phone: +258 ${phone}
+
+🍭 Product
+Item: ${state.product.name}
+Quantity: ${state.qty}
+Price: $${state.product.price.toFixed(2)}
+
+🚚 Delivery Method
+${state.deliveryMethod === 'delivery' ? 'Home Delivery' : 'Self Collect'}
+
+`;
+
+    if(state.deliveryMethod === "delivery"){
+        message += `Address:
+${address}
+
+`;
+    } else if(state.selectedStore){
+        message += `Pickup Store:
+${state.selectedStore.name}
+
+`;
+    }
+
+    message +=
+`💳 Payment Method
+${selectedPayment}
+
+Subtotal: $${subtotal.toFixed(2)}
+Delivery Fee: $${fee.toFixed(2)}
+Total: $${total.toFixed(2)}
+
+Thank you!`;
+
+    const whatsappURL =
+        `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
+
+    // Open WhatsApp
+    window.open(whatsappURL, "_blank");
+
+    // Show confirmation page
+    document.getElementById('confirm-name').textContent = ", " + name;
+    document.getElementById('confirm-id').textContent = orderID;
+    document.getElementById('confirm-payment').textContent = selectedPayment;
+
+    closePaymentModal();
+    showView('confirm');
+}
+
+  // ---------- store open/closed status + header carousel ----------
+  const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  let statusMessages = [];
+  let statusIndex = 0;
+  let statusInterval = null;
+
+  function getStoreOpenState(){
+    // Always evaluate against Johannesburg time (SAST, UTC+02:00, no DST)
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Africa/Johannesburg',
+      weekday: 'short',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false
+    }).formatToParts(new Date());
+
+    const map = {};
+    parts.forEach(p => { map[p.type] = p.value; });
+
+    const dayMap = { Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6 };
+    const day = dayMap[map.weekday];
+    let hourNum = parseInt(map.hour, 10) % 24; // normalize possible "24"
+    const minuteNum = parseInt(map.minute, 10);
+    const hour = hourNum + minuteNum / 60;
+
+    const isMonday = day === 1;
+    const openNow = !isMonday && hour >= 10 && hour < 18;
+    return { openNow, day, hour };
+  }
+
+  function getNextOpenLabel(day, hour){
+    if(day !== 1 && hour < 10){
+      return 'Opens Today at 10 AM';
+    }
+    let nextDay = (day + 1) % 7;
+    let skippedMonday = false;
+    if(nextDay === 1){ nextDay = 2; skippedMonday = true; }
+    return skippedMonday ? `Opens ${DAY_NAMES[nextDay]} at 10 AM` : 'Opens Tomorrow at 10 AM';
+  }
+
+  function initStoreStatus(){
+    const { openNow, day, hour } = getStoreOpenState();
+    const badge = document.getElementById('store-status');
+    const textEl = document.getElementById('status-text');
+
+    badge.classList.remove('open','closed');
+    badge.classList.add(openNow ? 'open' : 'closed');
+
+    statusMessages = openNow
+      ? ['🟢 Open Now', '📦 Taking Orders', '🌐 Shop Online']
+      : ['🔴 Closed Now', `🕒 ${getNextOpenLabel(day, hour)}`, '🌐 Order Online Anytime'];
+
+    statusIndex = 0;
+    textEl.textContent = statusMessages[0];
+
+    // highlight today's row in the footer hours list
+    document.querySelectorAll('#hours-list .hours-row').forEach((row, i) => {
+      row.classList.toggle('today', i === day);
+    });
+
+    if(statusInterval) clearInterval(statusInterval);
+    statusInterval = setInterval(() => {
+      textEl.classList.add('fade');
+      setTimeout(() => {
+        statusIndex = (statusIndex + 1) % statusMessages.length;
+        textEl.textContent = statusMessages[statusIndex];
+        textEl.classList.remove('fade');
+      }, 250);
+    }, 2400);
+  }
+
+  document.getElementById('footer-year').textContent = new Date().getFullYear();
+  initStoreStatus();
+  setInterval(initStoreStatus, 60000); // re-check real open/closed state every minute
+
+  function resetAndReturn(){
+    state.product = null;
+    state.qty = 1;
+    state.deliveryMethod = null;
+    state.selectedStore = null;
+    state.lat = null; state.lng = null;
+    selectedPayment = null;
+    document.getElementById('cust-name').value = '';
+    document.getElementById('cust-email').value = '';
+    document.getElementById('cust-phone').value = '';
+    document.getElementById('cust-address').value = '';
+    document.getElementById('btn-selfcollect').classList.remove('active');
+    document.getElementById('btn-delivery').classList.remove('active');
+    document.getElementById('location-box').classList.add('hidden');
+    document.getElementById('pickup-box').classList.add('hidden');
+    showView('shop');
+  }
+</script>
+
+</body>
+</html>
